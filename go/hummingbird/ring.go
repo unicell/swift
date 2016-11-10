@@ -338,3 +338,32 @@ func GetRing(ringType, prefix, suffix string, policy int) (Ring, error) {
 	}
 	return ring, nil
 }
+
+// GetRingSnapshot returns the current ring data given the ring_type
+// ("account", "container", "object"), hash path prefix, and hash path suffix.
+// An error is raised if the requested ring does not exist.
+// Unlike GetRing, it will NOT reload ring data periodically.
+func GetRingSnapshot(ringType, prefix, suffix string, policy int) (Ring, error) {
+	var ring Ring
+	var err error
+
+	loadRing := func(path string, prefix string, suffix string) (Ring, error) {
+		ring := &hashRing{prefix: prefix, suffix: suffix, path: path, mtime: time.Unix(0, 0)}
+		if err := ring.reload(); err == nil {
+			return ring, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	ringFile := fmt.Sprintf("%s.ring.gz", ringType)
+	if policy != 0 {
+		ringFile = fmt.Sprintf("%s-%d.ring.gz", ringType, policy)
+	}
+	if ring, err = loadRing(fmt.Sprintf("/etc/hummingbird/%s", ringFile), prefix, suffix); err != nil {
+		if ring, err = loadRing(fmt.Sprintf("/etc/swift/%s", ringFile), prefix, suffix); err != nil {
+			return nil, fmt.Errorf("Error loading %s:%d ring", ringType, policy)
+		}
+	}
+	return ring, nil
+}
